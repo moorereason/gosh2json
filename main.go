@@ -2,15 +2,16 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 
+	"github.com/Iwark/spreadsheet"
 	"github.com/Jeffail/gabs"
-	"github.com/moorereason/spreadsheet"
-	"golang.org/x/oauth2"
+	"golang.org/x/net/context"
 	"golang.org/x/oauth2/google"
 )
 
@@ -25,6 +26,7 @@ func main() {
 		return
 	}
 
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	client, err := newClient(*config)
 	if err != nil {
 		log.Fatal(err)
@@ -53,28 +55,25 @@ func newJWTClient(config string) (*http.Client, error) {
 		return nil, err
 	}
 
-	conf, err := google.JWTConfigFromJSON(clientData, spreadsheet.SpreadsheetScope)
+	conf, err := google.JWTConfigFromJSON(clientData, spreadsheet.Scope)
 	if err != nil {
 		return nil, err
 	}
 
-	return conf.Client(oauth2.NoContext), nil
+	return conf.Client(context.TODO()), nil
 }
 
 // newDefaultClient returns a default HTTP client.
 func newDefaultClient() (*http.Client, error) {
-	return google.DefaultClient(oauth2.NoContext, spreadsheet.SpreadsheetScope)
+	fmt.Printf("Default\n")
+	return google.DefaultClient(context.TODO(), spreadsheet.Scope)
 }
 
 // getSheets retrieves a spreadsheet by ID and returns it as a
 // spreadsheet.Worksheets object.
-func getSheets(client *http.Client, ID string) (*spreadsheet.Worksheets, error) {
-	sheetsService, err := spreadsheet.New(client)
-	if err != nil {
-		return nil, err
-	}
-
-	return sheetsService.Sheets.Worksheets(ID)
+func getSheets(client *http.Client, ID string) (*spreadsheet.Spreadsheet, error) {
+	s := &spreadsheet.Service{Client: client}
+	return s.Get(ID)
 }
 
 // generate is the main entry point in generating the resulting resources JSON
@@ -106,20 +105,26 @@ func generate(client *http.Client, ID string, pretty bool, w io.Writer) error {
 
 // getResourcesData parses a given set of Worksheets and returns a slice of
 // Resource objects.
-func getRecords(sheets *spreadsheet.Worksheets) (*gabs.Container, error) {
+func getRecords(sheets *spreadsheet.Spreadsheet) (*gabs.Container, error) {
 	obj := gabs.New()
 
-	for i := 0; i < len(sheets.Entries); i++ {
+	for i := 0; i < len(sheets.Worksheets); i++ {
 
 		s, err := sheets.Get(i)
 		if err != nil {
 			return nil, err
 		}
 
-		obj.ArrayOfSize(s.MaxRowNum, s.Title)
+		_, err = obj.ArrayOfSize(s.MaxRowNum, s.Title)
+		if err != nil {
+			return nil, err
+		}
 
 		for j, r := range s.Rows {
-			obj.S(s.Title).ArrayOfSizeI(s.MaxColNum, j)
+			_, err = obj.S(s.Title).ArrayOfSizeI(s.MaxColNum, j)
+			if err != nil {
+				return nil, err
+			}
 
 		CellLoop:
 			for k, c := range r {
@@ -127,7 +132,10 @@ func getRecords(sheets *spreadsheet.Worksheets) (*gabs.Container, error) {
 					continue CellLoop
 				}
 
-				obj.S(s.Title).Index(j).SetIndex(c.Content, k)
+				_, err = obj.S(s.Title).Index(j).SetIndex(c.Content, k)
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 	}
