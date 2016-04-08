@@ -3,6 +3,7 @@
 Google Spreadsheet to JSON converter written in Go.
 
 ![Project Status](https://img.shields.io/badge/status-beta-yellow.svg)
+[![Go Report Card](https://goreportcard.com/badge/github.com/moorereason/gosh2json)](https://goreportcard.com/report/github.com/moorereason/gosh2json)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 `gosh2json` is a simple tool that converts the content of a Google Spreadsheet into a JSON object.
